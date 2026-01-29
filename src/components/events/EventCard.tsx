@@ -84,6 +84,11 @@ export function EventCard({
               Team
             </Badge>
           )}
+          {event.is_paid && event.registration_fee && (
+            <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
+              ₹{event.registration_fee}
+            </Badge>
+          )}
         </div>
         {isPast && (
           <div className="absolute inset-0 bg-background/60 flex items-center justify-center">

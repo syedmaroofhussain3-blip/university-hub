@@ -209,6 +209,7 @@ export type Database = {
           leader_id: string
           logo_url: string | null
           name: string
+          payment_receipt_url: string | null
           team_code: string
           updated_at: string
         }
@@ -219,6 +220,7 @@ export type Database = {
           leader_id: string
           logo_url?: string | null
           name: string
+          payment_receipt_url?: string | null
           team_code: string
           updated_at?: string
         }
@@ -229,6 +231,7 @@ export type Database = {
           leader_id?: string
           logo_url?: string | null
           name?: string
+          payment_receipt_url?: string | null
           team_code?: string
           updated_at?: string
         }

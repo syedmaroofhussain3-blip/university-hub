@@ -6,13 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Users, UserPlus, Copy, Check, Upload, X } from 'lucide-react';
+import { Loader2, Users, UserPlus, Copy, Check, Upload, X, Receipt, IndianRupee } from 'lucide-react';
 
 interface TeamRegistrationProps {
   eventId: string;
   userId: string;
   minTeamSize: number;
   maxTeamSize: number | null;
+  isPaid: boolean;
+  registrationFee: number | null;
+  paymentQrUrl: string | null;
+  upiId: string | null;
   onSuccess: () => void;
 }
 
@@ -21,6 +25,10 @@ export default function TeamRegistration({
   userId,
   minTeamSize,
   maxTeamSize,
+  isPaid,
+  registrationFee,
+  paymentQrUrl,
+  upiId,
   onSuccess
 }: TeamRegistrationProps) {
   const [activeTab, setActiveTab] = useState<'create' | 'join'>('create');
@@ -31,6 +39,8 @@ export default function TeamRegistration({
   const [copied, setCopied] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -49,12 +59,38 @@ export default function TeamRegistration({
     setLogoPreview(null);
   }
 
+  function handleReceiptChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReceiptFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReceiptPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function removeReceipt() {
+    setReceiptFile(null);
+    setReceiptPreview(null);
+  }
+
   async function handleCreateTeam() {
     if (!teamName.trim()) {
       toast({
         variant: 'destructive',
         title: 'Team name required',
         description: 'Please enter a name for your team.'
+      });
+      return;
+    }
+
+    if (isPaid && !receiptFile) {
+      toast({
+        variant: 'destructive',
+        title: 'Payment receipt required',
+        description: 'Please upload your payment receipt.'
       });
       return;
     }
@@ -69,11 +105,12 @@ export default function TeamRegistration({
 
       const teamCode = codeData;
       let logoUrl: string | null = null;
+      let receiptUrl: string | null = null;
 
       // Upload logo if provided
       if (logoFile) {
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `teams/${eventId}/${teamCode}.${fileExt}`;
+        const fileName = `teams/${eventId}/${teamCode}-logo.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
           .from('event-images')
@@ -88,6 +125,24 @@ export default function TeamRegistration({
         logoUrl = publicUrl;
       }
 
+      // Upload receipt if provided (for paid events)
+      if (receiptFile) {
+        const fileExt = receiptFile.name.split('.').pop();
+        const fileName = `teams/${eventId}/${teamCode}-receipt.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('event-images')
+          .upload(fileName, receiptFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('event-images')
+          .getPublicUrl(fileName);
+        
+        receiptUrl = publicUrl;
+      }
+
       // Create team
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
@@ -96,7 +151,8 @@ export default function TeamRegistration({
           name: teamName.trim(),
           team_code: teamCode,
           leader_id: userId,
-          logo_url: logoUrl
+          logo_url: logoUrl,
+          payment_receipt_url: receiptUrl
         })
         .select()
         .single();
@@ -113,13 +169,13 @@ export default function TeamRegistration({
 
       if (memberError) throw memberError;
 
-      // Create registration for the leader (pending for team events - needs admin approval)
+      // Create registration - auto-approve for free events, pending for paid
       const { error: regError } = await supabase
         .from('registrations')
         .insert({
           event_id: eventId,
           user_id: userId,
-          status: 'pending'
+          status: isPaid ? 'pending' : 'approved'
         });
 
       if (regError) throw regError;
@@ -128,7 +184,9 @@ export default function TeamRegistration({
 
       toast({
         title: 'Team created!',
-        description: 'Share the code with your team members. Admin will approve once payment is verified.'
+        description: isPaid 
+          ? 'Your team is pending approval. Admin will verify your payment.'
+          : 'Your team has been approved!'
       });
     } catch (error: any) {
       toast({
@@ -193,20 +251,22 @@ export default function TeamRegistration({
 
       if (memberError) throw memberError;
 
-      // Create registration (pending for team events)
+      // Create registration - auto-approve for free events, pending for paid
       const { error: regError } = await supabase
         .from('registrations')
         .insert({
           event_id: eventId,
           user_id: userId,
-          status: 'pending'
+          status: isPaid ? 'pending' : 'approved'
         });
 
       if (regError) throw regError;
 
       toast({
         title: 'Joined team!',
-        description: `You have joined "${team.name}". Awaiting admin approval.`
+        description: isPaid 
+          ? `You joined "${team.name}". Awaiting admin approval.`
+          : `You joined "${team.name}"!`
       });
 
       onSuccess();
@@ -264,9 +324,11 @@ export default function TeamRegistration({
             Team size: {minTeamSize} - {maxTeamSize || '∞'} members
           </p>
 
-          <p className="text-sm text-yellow-600 text-center bg-yellow-50 p-2 rounded">
-            Your team registration is pending. Admin will approve after verifying payment.
-          </p>
+          {isPaid && (
+            <p className="text-sm text-yellow-600 text-center bg-yellow-50 p-2 rounded">
+              Your team is pending approval. Admin will verify your payment receipt.
+            </p>
+          )}
 
           <Button onClick={onSuccess} className="w-full">
             Done
@@ -285,6 +347,34 @@ export default function TeamRegistration({
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Payment Info for paid events */}
+        {isPaid && registrationFee && (
+          <div className="mb-6 p-4 rounded-lg bg-orange-50 border border-orange-200">
+            <div className="flex items-center gap-2 text-orange-800 font-medium mb-2">
+              <IndianRupee className="h-4 w-4" />
+              Registration Fee: ₹{registrationFee}
+            </div>
+            {paymentQrUrl && (
+              <div className="mt-3">
+                <p className="text-sm text-orange-700 mb-2">Scan QR to pay:</p>
+                <img 
+                  src={paymentQrUrl} 
+                  alt="Payment QR" 
+                  className="w-40 h-40 mx-auto rounded border"
+                />
+              </div>
+            )}
+            {upiId && (
+              <p className="text-sm text-orange-700 mt-2">
+                UPI ID: <span className="font-mono font-medium">{upiId}</span>
+              </p>
+            )}
+            <p className="text-xs text-orange-600 mt-2">
+              Pay first, then upload receipt below
+            </p>
+          </div>
+        )}
+
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'create' | 'join')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="create" className="gap-2">
@@ -345,6 +435,47 @@ export default function TeamRegistration({
               )}
             </div>
 
+            {/* Payment Receipt Upload for paid events */}
+            {isPaid && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Receipt className="h-4 w-4" />
+                  Payment Receipt *
+                </Label>
+                {receiptPreview ? (
+                  <div className="relative w-full max-w-xs rounded-lg overflow-hidden bg-muted">
+                    <img 
+                      src={receiptPreview} 
+                      alt="Payment receipt" 
+                      className="w-full object-contain max-h-48"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6"
+                      onClick={removeReceipt}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex w-full cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-orange-300 hover:border-orange-400 bg-orange-50 p-6 transition-colors">
+                    <div className="text-center">
+                      <Receipt className="mx-auto h-8 w-8 text-orange-500" />
+                      <p className="text-sm text-orange-700 mt-2">Upload payment screenshot</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleReceiptChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
             <p className="text-sm text-muted-foreground">
               Team size: {minTeamSize} - {maxTeamSize || '∞'} members
             </p>
@@ -380,6 +511,11 @@ export default function TeamRegistration({
             <p className="text-sm text-muted-foreground">
               Enter the 6-character code shared by your team leader
             </p>
+            {isPaid && (
+              <p className="text-sm text-orange-600 bg-orange-50 p-2 rounded">
+                Note: Team leader must upload payment receipt. Your registration will be approved with the team.
+              </p>
+            )}
             <Button 
               onClick={handleJoinTeam} 
               className="w-full"
