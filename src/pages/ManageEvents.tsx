@@ -25,7 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { Event } from '@/components/events/EventCard';
-import { PlusCircle, Users, Check, X, Loader2, User } from 'lucide-react';
+import { PlusCircle, Users, Check, X, Loader2, User, ExternalLink, Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface RegistrationWithProfile {
@@ -45,6 +45,7 @@ interface TeamWithMembers {
   name: string;
   team_code: string;
   logo_url: string | null;
+  payment_receipt_url: string | null;
   leader_id: string;
   created_at: string;
   members: {
@@ -121,14 +122,11 @@ export default function ManageEvents() {
             name,
             team_code,
             logo_url,
+            payment_receipt_url,
             leader_id,
             created_at,
             team_members (
-              user_id,
-              profiles (
-                full_name,
-                student_id
-              )
+              user_id
             )
           `)
           .eq('event_id', event.id)
@@ -136,9 +134,22 @@ export default function ManageEvents() {
 
         if (teamsError) throw teamsError;
 
-        // Fetch registration status for each team's leader
-        const teamsWithStatus = await Promise.all(
+        // Fetch profiles and registration status for each team
+        const teamsWithDetails = await Promise.all(
           (teamsData || []).map(async (team) => {
+            // Get all member user IDs including leader
+            const memberUserIds = team.team_members?.map((m: any) => m.user_id) || [];
+            if (!memberUserIds.includes(team.leader_id)) {
+              memberUserIds.push(team.leader_id);
+            }
+
+            // Fetch profiles for all members
+            const { data: profilesData } = await supabase
+              .from('profiles')
+              .select('user_id, full_name, student_id')
+              .in('user_id', memberUserIds);
+
+            // Fetch registration status for leader
             const { data: regData } = await supabase
               .from('registrations')
               .select('status')
@@ -146,36 +157,52 @@ export default function ManageEvents() {
               .eq('user_id', team.leader_id)
               .maybeSingle();
             
+            // Map members with their profiles
+            const membersWithProfiles = memberUserIds.map((userId: string) => {
+              const profile = profilesData?.find(p => p.user_id === userId);
+              return {
+                user_id: userId,
+                profiles: profile || { full_name: null, student_id: null }
+              };
+            });
+
             return {
               ...team,
-              members: team.team_members as any,
+              members: membersWithProfiles,
               registrations: regData ? [regData as any] : [{ status: 'pending' }]
             };
           })
         );
 
-        setTeams(teamsWithStatus);
+        setTeams(teamsWithDetails);
         setRegistrations([]);
       } else {
         // Fetch individual registrations
-        const { data, error } = await supabase
+        const { data: regData, error: regError } = await supabase
           .from('registrations')
-          .select(`
-            id,
-            status,
-            created_at,
-            user_id,
-            profiles (
-              full_name,
-              department,
-              student_id
-            )
-          `)
+          .select('id, status, created_at, user_id')
           .eq('event_id', event.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        setRegistrations(data as unknown as RegistrationWithProfile[]);
+        if (regError) throw regError;
+
+        // Fetch profiles for all registered users
+        const userIds = regData?.map(r => r.user_id) || [];
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, department, student_id')
+          .in('user_id', userIds);
+
+        // Map registrations with profiles
+        const registrationsWithProfiles = (regData || []).map(reg => {
+          const profile = profilesData?.find(p => p.user_id === reg.user_id);
+          return {
+            ...reg,
+            profiles: profile || { full_name: null, department: null, student_id: null }
+          };
+        });
+
+        setRegistrations(registrationsWithProfiles as RegistrationWithProfile[]);
         setTeams([]);
       }
     } catch (error) {
@@ -470,6 +497,28 @@ export default function ManageEvents() {
                                   ))}
                                 </div>
                               </div>
+
+                              {/* Payment Receipt for Paid Events */}
+                              {selectedEvent?.is_paid && (
+                                <div className="mt-3 p-2 rounded-md bg-muted/50">
+                                  <p className="text-xs font-medium mb-1 flex items-center gap-1">
+                                    <Receipt className="h-3 w-3" />
+                                    Payment Receipt
+                                  </p>
+                                  {team.payment_receipt_url ? (
+                                    <a 
+                                      href={team.payment_receipt_url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    >
+                                      View Receipt <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  ) : (
+                                    <p className="text-xs text-destructive">No receipt uploaded</p>
+                                  )}
+                                </div>
+                              )}
 
                               {teamStatus === 'pending' && (
                                 <div className="flex gap-2 mt-3">
