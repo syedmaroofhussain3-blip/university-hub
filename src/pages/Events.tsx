@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EventCard, Event, Registration } from '@/components/events/EventCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
-import { Search } from 'lucide-react';
+import { Search, Calendar } from 'lucide-react';
+import { FadeInUp, StaggerContainer, StaggerItem } from '@/components/ui/motion';
 
 export default function Events() {
   const { user } = useAuth();
@@ -129,10 +131,10 @@ export default function Events() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-64 bg-white/5" />
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="h-80" />
+            <Skeleton key={i} className="h-80 bg-white/5" />
           ))}
         </div>
       </div>
@@ -141,42 +143,55 @@ export default function Events() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Browse Events</h1>
-        <p className="text-muted-foreground">
-          Discover and register for upcoming campus events
-        </p>
-      </div>
+      <FadeInUp>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl aurora-gradient">
+            <Calendar className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl font-bold">Browse Events</h1>
+            <p className="text-muted-foreground">
+              Discover and register for upcoming campus events
+            </p>
+          </div>
+        </div>
+      </FadeInUp>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search events..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
+      <FadeInUp>
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search events..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 glass border-white/10 focus:border-aurora-cyan/50"
+          />
+        </div>
+      </FadeInUp>
 
       {filteredEvents.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {searchQuery ? 'No events match your search.' : 'No events available yet.'}
-          </p>
-        </div>
+        <FadeInUp>
+          <div className="glass-card p-12 text-center">
+            <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground">
+              {searchQuery ? 'No events match your search.' : 'No events available yet.'}
+            </p>
+          </div>
+        </FadeInUp>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <StaggerContainer className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredEvents.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              registration={registrations[event.id]}
-              registrationCount={registrationCounts[event.id]}
-              onRegister={handleRegister}
-              isRegistering={registeringId === event.id}
-            />
+            <StaggerItem key={event.id}>
+              <EventCard
+                event={event}
+                registration={registrations[event.id]}
+                registrationCount={registrationCounts[event.id]}
+                onRegister={handleRegister}
+                isRegistering={registeringId === event.id}
+              />
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       )}
     </div>
   );

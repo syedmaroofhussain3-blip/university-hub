@@ -1,7 +1,8 @@
 import { Outlet, Navigate } from 'react-router-dom';
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from './AppSidebar';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { DesktopTopNav } from './DesktopTopNav';
+import { MobileBottomNav } from './MobileBottomNav';
 import { Loader2 } from 'lucide-react';
 
 export function AppLayout() {
@@ -9,8 +10,18 @@ export function AppLayout() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center cosmic-hero">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative">
+            <div className="absolute inset-0 aurora-gradient rounded-full blur-xl opacity-50 animate-pulse" />
+            <Loader2 className="relative h-10 w-10 animate-spin text-primary" />
+          </div>
+          <p className="text-muted-foreground">Loading...</p>
+        </motion.div>
       </div>
     );
   }
@@ -26,18 +37,27 @@ export function AppLayout() {
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <AppSidebar />
-        <main className="flex-1">
-          <header className="flex h-14 items-center border-b px-4">
-            <SidebarTrigger />
-          </header>
-          <div className="p-6">
+    <div className="min-h-screen cosmic-bg">
+      {/* Desktop Navigation */}
+      <DesktopTopNav />
+      
+      {/* Main Content */}
+      <main className="pt-0 pb-24 md:pt-20 md:pb-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="container mx-auto px-4 py-6"
+          >
             <Outlet />
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav />
+    </div>
   );
 }

@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Calendar, Users, ClipboardList, Megaphone, ArrowRight, Bell, Check, X, Loader2, ExternalLink } from 'lucide-react';
+import { 
+  Calendar, Users, ClipboardList, Megaphone, ArrowRight, Bell, 
+  Check, X, Loader2, ExternalLink, Sparkles, LayoutDashboard, Receipt
+} from 'lucide-react';
 import { format } from 'date-fns';
+import { FadeInUp, StaggerContainer, StaggerItem, FloatingCard } from '@/components/ui/motion';
 
 interface DashboardStats {
   totalEvents: number;
@@ -218,217 +222,267 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-8 w-48 bg-white/5" />
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-32 bg-white/5" />
           ))}
         </div>
       </div>
     );
   }
 
+  const statCards = [
+    { 
+      label: 'Total Events', 
+      value: stats.totalEvents, 
+      icon: Calendar, 
+      description: 'Active campus events',
+      color: 'cyan' as const
+    },
+    { 
+      label: 'My Registrations', 
+      value: stats.myRegistrations, 
+      icon: ClipboardList, 
+      description: "Events you've registered for",
+      color: 'magenta' as const
+    },
+    ...(role === 'president' || role === 'admin' ? [
+      { 
+        label: 'My Events', 
+        value: stats.myEvents, 
+        icon: Users, 
+        description: "Events you've created",
+        color: 'violet' as const
+      },
+      { 
+        label: 'Pending Approvals', 
+        value: stats.pendingApprovals, 
+        icon: Bell, 
+        description: 'Registrations awaiting review',
+        color: 'cyan' as const
+      }
+    ] : [])
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Welcome back!</h1>
-        <p className="text-muted-foreground">
-          You're logged in as a <span className="font-medium text-foreground">{roleDisplay}</span>
-        </p>
-      </div>
+    <div className="space-y-8">
+      {/* Header */}
+      <FadeInUp>
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl aurora-gradient">
+            <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl font-bold">Welcome back!</h1>
+            <p className="text-muted-foreground">
+              You're logged in as a <span className="text-aurora-cyan font-medium">{roleDisplay}</span>
+            </p>
+          </div>
+        </div>
+      </FadeInUp>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Events</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEvents}</div>
-            <p className="text-xs text-muted-foreground">Active campus events</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">My Registrations</CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.myRegistrations}</div>
-            <p className="text-xs text-muted-foreground">Events you've registered for</p>
-          </CardContent>
-        </Card>
-
-        {(role === 'president' || role === 'admin') && (
-          <>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">My Events</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.myEvents}</div>
-                <p className="text-xs text-muted-foreground">Events you've created</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
-                <Bell className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.pendingApprovals}</div>
-                <p className="text-xs text-muted-foreground">Registrations awaiting review</p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
-
-      {/* Pending Team Approvals for Admins/Presidents */}
-      {(role === 'president' || role === 'admin') && pendingTeams.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-orange-500" />
-              Pending Team Approvals
-            </CardTitle>
-            <CardDescription>
-              Review payment receipts and approve teams
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {pendingTeams.map((team) => (
-              <div key={team.id} className="flex items-start gap-4 p-4 rounded-lg border">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={team.logo_url || undefined} />
-                  <AvatarFallback>{team.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div>
-                      <p className="font-medium">{team.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {team.event_title} • {team.member_count} members • Code: {team.team_code}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                      Pending
-                    </Badge>
-                  </div>
-                  
-                  {team.payment_receipt_url && (
-                    <div className="mt-3">
-                      <a 
-                        href={team.payment_receipt_url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View Payment Receipt
-                      </a>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 mt-3">
-                    <Button
-                      size="sm"
-                      className="gap-1 bg-green-600 hover:bg-green-700"
-                      onClick={() => handleTeamApproval(team, 'approved')}
-                      disabled={updatingId === team.id}
-                    >
-                      {updatingId === team.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Check className="h-3 w-3" />
-                      )}
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="gap-1"
-                      onClick={() => handleTeamApproval(team, 'rejected')}
-                      disabled={updatingId === team.id}
-                    >
-                      <X className="h-3 w-3" />
-                      Reject
-                    </Button>
+      <StaggerContainer className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => {
+          const Icon = stat.icon;
+          const glowColors = {
+            cyan: 'hover:shadow-[0_0_30px_-10px_hsl(192_95%_60%/0.4)]',
+            magenta: 'hover:shadow-[0_0_30px_-10px_hsl(330_85%_60%/0.4)]',
+            violet: 'hover:shadow-[0_0_30px_-10px_hsl(280_80%_65%/0.4)]',
+          };
+          const iconColors = {
+            cyan: 'text-aurora-cyan bg-aurora-cyan/20',
+            magenta: 'text-aurora-magenta bg-aurora-magenta/20',
+            violet: 'text-aurora-violet bg-aurora-violet/20',
+          };
+          
+          return (
+            <StaggerItem key={stat.label}>
+              <motion.div
+                whileHover={{ y: -3 }}
+                className={`glass-card p-5 transition-shadow duration-300 ${glowColors[stat.color]}`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-muted-foreground">{stat.label}</span>
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconColors[stat.color]}`}>
+                    <Icon className="h-5 w-5" />
                   </div>
                 </div>
-              </div>
-            ))}
-            
-            <Link to="/events/manage" className="block">
-              <Button variant="outline" className="w-full gap-2">
-                View All Registrations
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
+                <div className="font-display text-3xl font-bold text-gradient">{stat.value}</div>
+                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+              </motion.div>
+            </StaggerItem>
+          );
+        })}
+      </StaggerContainer>
 
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks you can do right now</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Link to="/events">
-              <Button variant="outline" className="gap-2">
-                <Calendar className="h-4 w-4" />
-                Browse Events
-              </Button>
-            </Link>
-            <Link to="/registrations">
-              <Button variant="outline" className="gap-2">
-                <ClipboardList className="h-4 w-4" />
-                View Registrations
-              </Button>
-            </Link>
-            {(role === 'president' || role === 'admin') && (
-              <>
-                <Link to="/events/create">
-                  <Button className="gap-2">
-                    Create Event
+      {/* Pending Team Approvals */}
+      {(role === 'president' || role === 'admin') && pendingTeams.length > 0 && (
+        <FadeInUp>
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warning/20">
+                <Bell className="h-5 w-5 text-warning" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold">Pending Team Approvals</h2>
+                <p className="text-sm text-muted-foreground">Review payment receipts and approve teams</p>
+              </div>
+            </div>
+            
+            <div className="space-y-4">
+              {pendingTeams.map((team) => (
+                <motion.div
+                  key={team.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-start gap-4 p-4 rounded-xl glass border-white/5"
+                >
+                  <Avatar className="h-12 w-12 ring-2 ring-white/10">
+                    <AvatarImage src={team.logo_url || undefined} />
+                    <AvatarFallback className="aurora-gradient text-primary-foreground font-semibold">
+                      {team.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <p className="font-semibold">{team.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {team.event_title} • {team.member_count} members • Code: {team.team_code}
+                        </p>
+                      </div>
+                      <Badge className="bg-warning/20 text-warning border-0">
+                        Pending
+                      </Badge>
+                    </div>
+                    
+                    {team.payment_receipt_url && (
+                      <div className="mt-3">
+                        <a 
+                          href={team.payment_receipt_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-sm text-aurora-cyan hover:underline"
+                        >
+                          <Receipt className="h-4 w-4" />
+                          View Payment Receipt
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 mt-3">
+                      <motion.div whileTap={{ scale: 0.95 }}>
+                        <Button
+                          size="sm"
+                          className="gap-1 bg-success hover:bg-success/90"
+                          onClick={() => handleTeamApproval(team, 'approved')}
+                          disabled={updatingId === team.id}
+                        >
+                          {updatingId === team.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )}
+                          Approve
+                        </Button>
+                      </motion.div>
+                      <motion.div whileTap={{ scale: 0.95 }}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="gap-1"
+                          onClick={() => handleTeamApproval(team, 'rejected')}
+                          disabled={updatingId === team.id}
+                        >
+                          <X className="h-3 w-3" />
+                          Reject
+                        </Button>
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+              
+              <Link to="/events/manage">
+                <motion.div whileTap={{ scale: 0.98 }}>
+                  <Button variant="outline" className="w-full gap-2 glass border-white/10 hover:bg-white/5">
+                    View All Registrations
                     <ArrowRight className="h-4 w-4" />
                   </Button>
-                </Link>
-                <Link to="/events/manage">
-                  <Button variant="outline" className="gap-2">
-                    <Users className="h-4 w-4" />
-                    Manage Events
-                  </Button>
-                </Link>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </motion.div>
+              </Link>
+            </div>
+          </div>
+        </FadeInUp>
+      )}
 
-        {/* Announcements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Megaphone className="h-5 w-5" />
-              Recent Announcements
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* Quick Actions & Announcements */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <FadeInUp>
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Sparkles className="h-5 w-5 text-aurora-cyan" />
+              <h2 className="font-display text-lg font-bold">Quick Actions</h2>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link to="/events">
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button variant="outline" className="gap-2 glass border-white/10 hover:bg-white/5">
+                    <Calendar className="h-4 w-4" />
+                    Browse Events
+                  </Button>
+                </motion.div>
+              </Link>
+              <Link to="/registrations">
+                <motion.div whileTap={{ scale: 0.95 }}>
+                  <Button variant="outline" className="gap-2 glass border-white/10 hover:bg-white/5">
+                    <ClipboardList className="h-4 w-4" />
+                    View Registrations
+                  </Button>
+                </motion.div>
+              </Link>
+              {(role === 'president' || role === 'admin') && (
+                <>
+                  <Link to="/events/create">
+                    <motion.div whileTap={{ scale: 0.95 }}>
+                      <Button className="gap-2 aurora-gradient border-0">
+                        Create Event
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
+                  </Link>
+                  <Link to="/events/manage">
+                    <motion.div whileTap={{ scale: 0.95 }}>
+                      <Button variant="outline" className="gap-2 glass border-white/10 hover:bg-white/5">
+                        <Users className="h-4 w-4" />
+                        Manage Events
+                      </Button>
+                    </motion.div>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </FadeInUp>
+
+        <FadeInUp>
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Megaphone className="h-5 w-5 text-aurora-magenta" />
+              <h2 className="font-display text-lg font-bold">Recent Announcements</h2>
+            </div>
             {announcements.length === 0 ? (
               <p className="text-sm text-muted-foreground">No announcements yet.</p>
             ) : (
               <div className="space-y-3">
                 {announcements.map((announcement) => (
-                  <div key={announcement.id} className="border-b pb-3 last:border-0">
-                    <p className="font-medium">{announcement.title}</p>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
+                  <div key={announcement.id} className="border-b border-white/5 pb-3 last:border-0">
+                    <p className="font-medium text-sm">{announcement.title}</p>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                       {announcement.content}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -438,8 +492,8 @@ export default function Dashboard() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </FadeInUp>
       </div>
     </div>
   );

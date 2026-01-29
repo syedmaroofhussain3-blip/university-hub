@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Search, Crown, Loader2, UserMinus } from 'lucide-react';
+import { Search, Crown, Loader2, UserMinus, Users, Shield } from 'lucide-react';
+import { FadeInUp } from '@/components/ui/motion';
 
 interface UserWithRole {
   id: string;
@@ -160,11 +161,25 @@ export default function UserManagement() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin':
-        return <Badge className="bg-purple-500">Admin</Badge>;
+        return (
+          <Badge className="bg-aurora-violet/20 text-aurora-violet border-0">
+            <Shield className="h-3 w-3 mr-1" />
+            Admin
+          </Badge>
+        );
       case 'president':
-        return <Badge className="bg-blue-500">President</Badge>;
+        return (
+          <Badge className="bg-aurora-cyan/20 text-aurora-cyan border-0">
+            <Crown className="h-3 w-3 mr-1" />
+            President
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary">Student</Badge>;
+        return (
+          <Badge variant="secondary" className="glass border-white/10">
+            Student
+          </Badge>
+        );
     }
   };
 
@@ -177,106 +192,124 @@ export default function UserManagement() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-64" />
+        <Skeleton className="h-8 w-48 bg-white/5" />
+        <Skeleton className="h-10 w-64 bg-white/5" />
+        <Skeleton className="h-64 bg-white/5" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <p className="text-muted-foreground">
-          Manage user roles and promote students to Club Presidents
-        </p>
-      </div>
+      <FadeInUp>
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl aurora-gradient">
+            <Users className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-display text-3xl font-bold">User Management</h1>
+            <p className="text-muted-foreground">
+              Manage user roles and promote students to Club Presidents
+            </p>
+          </div>
+        </div>
+      </FadeInUp>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, ID, or department..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
+      <FadeInUp>
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, ID, or department..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 glass border-white/10 focus:border-aurora-cyan/50"
+          />
+        </div>
+      </FadeInUp>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Student ID</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  {searchQuery ? 'No users match your search.' : 'No users found.'}
-                </TableCell>
+      <FadeInUp>
+        <div className="glass-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-white/10 hover:bg-white/5">
+                <TableHead className="text-muted-foreground">Name</TableHead>
+                <TableHead className="text-muted-foreground">Student ID</TableHead>
+                <TableHead className="text-muted-foreground">Department</TableHead>
+                <TableHead className="text-muted-foreground">Role</TableHead>
+                <TableHead className="text-right text-muted-foreground">Actions</TableHead>
               </TableRow>
-            ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">
-                    {user.full_name || 'Not set'}
-                  </TableCell>
-                  <TableCell>{user.student_id || '-'}</TableCell>
-                  <TableCell>{user.department || '-'}</TableCell>
-                  <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {user.role === 'student' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPromotingUser(user)}
-                        className="gap-1"
-                      >
-                        <Crown className="h-4 w-4" />
-                        Make President
-                      </Button>
-                    )}
-                    {user.role === 'president' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDemotingUser(user)}
-                        className="gap-1 text-destructive hover:text-destructive"
-                      >
-                        <UserMinus className="h-4 w-4" />
-                        Remove President
-                      </Button>
-                    )}
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    {searchQuery ? 'No users match your search.' : 'No users found.'}
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+              ) : (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id} className="border-white/5 hover:bg-white/5">
+                    <TableCell className="font-medium">
+                      {user.full_name || 'Not set'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{user.student_id || '-'}</TableCell>
+                    <TableCell className="text-muted-foreground">{user.department || '-'}</TableCell>
+                    <TableCell>{getRoleBadge(user.role)}</TableCell>
+                    <TableCell className="text-right space-x-2">
+                      {user.role === 'student' && (
+                        <motion.span whileTap={{ scale: 0.95 }} className="inline-block">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPromotingUser(user)}
+                            className="gap-1 glass border-white/10 hover:bg-aurora-cyan/20 hover:text-aurora-cyan hover:border-aurora-cyan/50"
+                          >
+                            <Crown className="h-4 w-4" />
+                            Make President
+                          </Button>
+                        </motion.span>
+                      )}
+                      {user.role === 'president' && (
+                        <motion.span whileTap={{ scale: 0.95 }} className="inline-block">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDemotingUser(user)}
+                            className="gap-1 glass border-white/10 hover:bg-destructive/20 hover:text-destructive hover:border-destructive/50"
+                          >
+                            <UserMinus className="h-4 w-4" />
+                            Remove President
+                          </Button>
+                        </motion.span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </FadeInUp>
 
       {/* Promote Confirmation Dialog */}
       <AlertDialog open={!!promotingUser} onOpenChange={() => setPromotingUser(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-white/10">
           <AlertDialogHeader>
-            <AlertDialogTitle>Promote to Club President?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">Promote to Club President?</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to promote <strong>{promotingUser?.full_name || 'this user'}</strong> to 
+              You are about to promote <strong className="text-aurora-cyan">{promotingUser?.full_name || 'this user'}</strong> to 
               Club President. They will be able to create events, manage registrations, and post 
               announcements.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPromoting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPromoting} className="glass border-white/10">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={promoteToPresident}
               disabled={isPromoting}
+              className="aurora-gradient border-0"
             >
               {isPromoting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Promote
@@ -287,16 +320,18 @@ export default function UserManagement() {
 
       {/* Demote Confirmation Dialog */}
       <AlertDialog open={!!demotingUser} onOpenChange={() => setDemotingUser(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="glass-card border-white/10">
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove President Role?</AlertDialogTitle>
+            <AlertDialogTitle className="font-display">Remove President Role?</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to demote <strong>{demotingUser?.full_name || 'this user'}</strong> back 
+              You are about to demote <strong className="text-destructive">{demotingUser?.full_name || 'this user'}</strong> back 
               to Student. They will lose access to event management and announcement features.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDemoting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDemoting} className="glass border-white/10">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={demoteToStudent}
               disabled={isDemoting}

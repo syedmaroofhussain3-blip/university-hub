@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Users, Loader2, DollarSign, UsersRound } from 'lucide-react';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 export interface Event {
   id: string;
@@ -44,117 +45,162 @@ export function EventCard({
   isRegistering,
   showManage 
 }: EventCardProps) {
+  const isPast = new Date(event.event_date) < new Date();
+  const isFull = registrationCount >= event.capacity;
+  const isPaid = event.is_paid && event.registration_fee;
+  const isTeam = event.registration_type === 'team';
+
+  // Generate a placeholder gradient based on event id
+  const gradients = [
+    'from-[hsl(192,95%,60%,0.3)] to-[hsl(330,85%,60%,0.3)]',
+    'from-[hsl(330,85%,60%,0.3)] to-[hsl(280,80%,65%,0.3)]',
+    'from-[hsl(280,80%,65%,0.3)] to-[hsl(192,95%,60%,0.3)]',
+  ];
+  const gradientIndex = event.id.charCodeAt(0) % gradients.length;
+
   const getStatusBadge = () => {
     if (!registration) return null;
     
-    switch (registration.status) {
-      case 'approved':
-        return <Badge className="bg-green-500 hover:bg-green-600">Approved</Badge>;
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">Pending</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-    }
+    const statusStyles = {
+      approved: 'bg-success text-white border-0',
+      pending: 'bg-warning text-white border-0',
+      rejected: 'bg-destructive text-white border-0',
+    };
+
+    return (
+      <Badge className={cn('capitalize', statusStyles[registration.status])}>
+        {registration.status}
+      </Badge>
+    );
   };
 
-  const isPast = new Date(event.event_date) < new Date();
-  const isFull = registrationCount >= event.capacity;
-
   return (
-    <Card className="overflow-hidden transition-shadow hover:shadow-md">
-      <div className="aspect-video relative bg-muted">
+    <motion.div
+      whileHover={{ y: -5 }}
+      whileTap={{ scale: 0.98 }}
+      className="glass-card overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_40px_-10px_hsl(192_95%_60%/0.3)] group"
+    >
+      {/* Image / Gradient Placeholder */}
+      <div className="relative h-40 overflow-hidden">
         {event.image_url ? (
-          <img 
-            src={event.image_url} 
+          <img
+            src={event.image_url}
             alt={event.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <Calendar className="h-12 w-12 text-muted-foreground/50" />
+          <div className={cn(
+            'h-full w-full bg-gradient-to-br flex items-center justify-center',
+            gradients[gradientIndex]
+          )}>
+            <Calendar className="h-12 w-12 text-white/30" />
           </div>
         )}
-        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-          {getStatusBadge()}
-        </div>
-        <div className="absolute top-2 left-2 flex gap-1">
-          {event.registration_type === 'team' && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
-              <Users className="h-3 w-3 mr-1" />
+        
+        {/* Overlay badges */}
+        <div className="absolute top-3 left-3 flex gap-2">
+          {isPaid ? (
+            <Badge className="bg-aurora-magenta/90 text-white border-0">
+              <DollarSign className="mr-1 h-3 w-3" />
+              ₹{event.registration_fee}
+            </Badge>
+          ) : (
+            <Badge className="bg-success/90 text-white border-0">
+              Free
+            </Badge>
+          )}
+          {isTeam && (
+            <Badge variant="secondary" className="glass border-white/20 text-white">
+              <UsersRound className="mr-1 h-3 w-3" />
               Team
             </Badge>
           )}
-          {event.is_paid && event.registration_fee && (
-            <Badge variant="secondary" className="bg-orange-100 text-orange-800 text-xs">
-              ₹{event.registration_fee}
-            </Badge>
-          )}
         </div>
+        
+        {/* Registration status */}
+        <div className="absolute top-3 right-3">
+          {getStatusBadge()}
+        </div>
+
+        {/* Past event overlay */}
         {isPast && (
-          <div className="absolute inset-0 bg-background/60 flex items-center justify-center">
-            <Badge variant="secondary" className="text-lg">Event Ended</Badge>
+          <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center">
+            <Badge variant="secondary" className="text-base glass border-white/20">
+              Event Ended
+            </Badge>
           </div>
         )}
       </div>
-      
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="font-semibold line-clamp-1">{event.title}</h3>
-            <p className="text-sm text-muted-foreground">{event.club_name}</p>
-          </div>
+
+      {/* Content */}
+      <div className="p-4">
+        <div className="mb-2">
+          <Badge variant="outline" className="text-xs text-muted-foreground border-white/10">
+            {event.club_name}
+          </Badge>
         </div>
-      </CardHeader>
-      
-      <CardContent className="pb-2">
-        <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+        
+        <h3 className="font-display font-semibold text-lg mb-1 line-clamp-1 group-hover:text-aurora-cyan transition-colors">
+          {event.title}
+        </h3>
+        
+        <p className="text-sm text-muted-foreground line-clamp-2 mb-3 min-h-[2.5rem]">
           {event.description || 'No description available.'}
         </p>
         
-        <div className="space-y-1 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>{format(new Date(event.event_date), 'MMM d, yyyy • h:mm a')}</span>
+        <div className="space-y-2 text-sm text-muted-foreground mb-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-aurora-cyan" />
+            <span>{format(new Date(event.event_date), 'EEE, MMM d • h:mm a')}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            <span className="line-clamp-1">{event.location}</span>
+          
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-aurora-magenta" />
+            <span className="truncate">{event.location}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Users className="h-4 w-4" />
+          
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-aurora-violet" />
             <span>{registrationCount} / {event.capacity} registered</span>
           </div>
         </div>
-      </CardContent>
-      
-      <CardFooter className="gap-2">
-        {showManage ? (
-          <Link to={`/events/${event.id}/manage`} className="flex-1">
-            <Button variant="outline" className="w-full">Manage</Button>
-          </Link>
-        ) : (
-          <>
-            <Link to={`/events/${event.id}`} className="flex-1">
-              <Button variant="outline" className="w-full">View Details</Button>
-            </Link>
-            {!registration && !isPast && onRegister && (
-              <Button 
-                className="flex-1" 
-                onClick={() => onRegister(event.id)}
-                disabled={isRegistering || isFull}
-              >
-                {isRegistering ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isFull ? (
-                  'Full'
-                ) : (
-                  'Register'
-                )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          {showManage ? (
+            <Link to={`/events/${event.id}/manage`} className="flex-1">
+              <Button variant="outline" className="w-full glass border-white/20 hover:bg-white/10">
+                Manage
               </Button>
-            )}
-          </>
-        )}
-      </CardFooter>
-    </Card>
+            </Link>
+          ) : (
+            <>
+              <Link to={`/events/${event.id}`} className="flex-1">
+                <Button variant="outline" className="w-full glass border-white/20 hover:bg-white/10">
+                  View Details
+                </Button>
+              </Link>
+              {!registration && !isPast && onRegister && (
+                <motion.div whileTap={{ scale: 0.95 }} className="flex-1">
+                  <Button 
+                    className="w-full aurora-gradient border-0 font-semibold" 
+                    onClick={() => onRegister(event.id)}
+                    disabled={isRegistering || isFull}
+                  >
+                    {isRegistering ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isFull ? (
+                      'Full'
+                    ) : (
+                      'Register'
+                    )}
+                  </Button>
+                </motion.div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
