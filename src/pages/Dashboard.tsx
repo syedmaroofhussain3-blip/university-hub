@@ -4,9 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Calendar, Users, ClipboardList, Megaphone, ArrowRight, Bell } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { Calendar, Users, ClipboardList, Megaphone, ArrowRight, Bell, Check, X, Loader2, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface DashboardStats {
@@ -23,6 +25,18 @@ interface Announcement {
   created_at: string;
 }
 
+interface PendingTeam {
+  id: string;
+  name: string;
+  team_code: string;
+  logo_url: string | null;
+  payment_receipt_url: string | null;
+  leader_id: string;
+  event_id: string;
+  event_title: string;
+  member_count: number;
+}
+
 export default function Dashboard() {
   const { role, user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({ 
@@ -32,7 +46,9 @@ export default function Dashboard() {
     pendingApprovals: 0 
   });
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [pendingTeams, setPendingTeams] = useState<PendingTeam[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -53,6 +69,7 @@ export default function Dashboard() {
         // Fetch my events (for presidents/admins)
         let myEventsCount = 0;
         let pendingCount = 0;
+        const teamsList: PendingTeam[] = [];
 
         if (role === 'president' || role === 'admin') {
           const { count } = await supabase
@@ -61,20 +78,71 @@ export default function Dashboard() {
             .eq('created_by', user.id);
           myEventsCount = count || 0;
 
-          // Fetch pending approvals for my events
-          const { data: myEvents } = await supabase
+          // Fetch my events for getting pending teams
+          let eventsQuery = supabase
             .from('events')
-            .select('id')
-            .eq('created_by', user.id);
+            .select('id, title, is_paid');
+
+          if (role !== 'admin') {
+            eventsQuery = eventsQuery.eq('created_by', user.id);
+          }
+
+          const { data: myEvents } = await eventsQuery;
 
           if (myEvents && myEvents.length > 0) {
+            // Fetch pending teams with receipt for each event
+            for (const event of myEvents) {
+              const { data: teams } = await supabase
+                .from('teams')
+                .select(`
+                  id,
+                  name,
+                  team_code,
+                  logo_url,
+                  payment_receipt_url,
+                  leader_id,
+                  event_id,
+                  team_members (count)
+                `)
+                .eq('event_id', event.id);
+
+              if (teams) {
+                for (const team of teams) {
+                  // Check if leader registration is pending
+                  const { data: leaderReg } = await supabase
+                    .from('registrations')
+                    .select('status')
+                    .eq('event_id', event.id)
+                    .eq('user_id', team.leader_id)
+                    .maybeSingle();
+
+                  if (leaderReg?.status === 'pending') {
+                    pendingCount++;
+                    teamsList.push({
+                      id: team.id,
+                      name: team.name,
+                      team_code: team.team_code,
+                      logo_url: team.logo_url,
+                      payment_receipt_url: team.payment_receipt_url,
+                      leader_id: team.leader_id,
+                      event_id: team.event_id,
+                      event_title: event.title,
+                      member_count: (team.team_members as any)?.[0]?.count || 0
+                    });
+                  }
+                }
+              }
+            }
+
+            // Also count individual pending registrations
             const eventIds = myEvents.map(e => e.id);
-            const { count: pending } = await supabase
+            const { count: individualPending } = await supabase
               .from('registrations')
               .select('*', { count: 'exact', head: true })
               .in('event_id', eventIds)
               .eq('status', 'pending');
-            pendingCount = pending || 0;
+            
+            pendingCount = individualPending || 0;
           }
         }
 
@@ -84,6 +152,8 @@ export default function Dashboard() {
           myEvents: myEventsCount,
           pendingApprovals: pendingCount
         });
+
+        setPendingTeams(teamsList);
 
         // Fetch recent announcements
         const { data: announcementsData } = await supabase
@@ -102,6 +172,46 @@ export default function Dashboard() {
 
     fetchDashboardData();
   }, [user, role]);
+
+  async function handleTeamApproval(team: PendingTeam, newStatus: 'approved' | 'rejected') {
+    setUpdatingId(team.id);
+
+    try {
+      // Get all team members
+      const { data: members } = await supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', team.id);
+
+      if (members && members.length > 0) {
+        // Update all team members' registrations
+        const { error } = await supabase
+          .from('registrations')
+          .update({ status: newStatus })
+          .eq('event_id', team.event_id)
+          .in('user_id', members.map(m => m.user_id));
+
+        if (error) throw error;
+      }
+
+      // Remove from local state
+      setPendingTeams(prev => prev.filter(t => t.id !== team.id));
+      setStats(prev => ({ ...prev, pendingApprovals: Math.max(0, prev.pendingApprovals - 1) }));
+
+      toast({
+        title: `Team ${newStatus}`,
+        description: `"${team.name}" has been ${newStatus}.`
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to update team status.'
+      });
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
   const roleDisplay = role === 'admin' ? 'Faculty Admin' : role === 'president' ? 'Club President' : 'Student';
 
@@ -178,6 +288,91 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Pending Team Approvals for Admins/Presidents */}
+      {(role === 'president' || role === 'admin') && pendingTeams.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-orange-500" />
+              Pending Team Approvals
+            </CardTitle>
+            <CardDescription>
+              Review payment receipts and approve teams
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pendingTeams.map((team) => (
+              <div key={team.id} className="flex items-start gap-4 p-4 rounded-lg border">
+                <Avatar className="h-12 w-12">
+                  <AvatarImage src={team.logo_url || undefined} />
+                  <AvatarFallback>{team.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <p className="font-medium">{team.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {team.event_title} • {team.member_count} members • Code: {team.team_code}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                      Pending
+                    </Badge>
+                  </div>
+                  
+                  {team.payment_receipt_url && (
+                    <div className="mt-3">
+                      <a 
+                        href={team.payment_receipt_url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View Payment Receipt
+                      </a>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      size="sm"
+                      className="gap-1 bg-green-600 hover:bg-green-700"
+                      onClick={() => handleTeamApproval(team, 'approved')}
+                      disabled={updatingId === team.id}
+                    >
+                      {updatingId === team.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Check className="h-3 w-3" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="gap-1"
+                      onClick={() => handleTeamApproval(team, 'rejected')}
+                      disabled={updatingId === team.id}
+                    >
+                      <X className="h-3 w-3" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            <Link to="/events/manage" className="block">
+              <Button variant="outline" className="w-full gap-2">
+                View All Registrations
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -199,12 +394,20 @@ export default function Dashboard() {
               </Button>
             </Link>
             {(role === 'president' || role === 'admin') && (
-              <Link to="/events/create">
-                <Button className="gap-2">
-                  Create Event
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <>
+                <Link to="/events/create">
+                  <Button className="gap-2">
+                    Create Event
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link to="/events/manage">
+                  <Button variant="outline" className="gap-2">
+                    <Users className="h-4 w-4" />
+                    Manage Events
+                  </Button>
+                </Link>
+              </>
             )}
           </CardContent>
         </Card>

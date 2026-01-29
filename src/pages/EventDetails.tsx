@@ -265,7 +265,7 @@ export default function EventDetails() {
             </div>
           </div>
 
-          {/* Event Type Badges */}
+          {/* Event Type & Payment Badges */}
           <div className="flex flex-wrap gap-2">
             {event.registration_type === 'team' && (
               <Badge variant="outline" className="gap-1">
@@ -277,6 +277,15 @@ export default function EventDetails() {
               <Badge variant="outline" className="gap-1">
                 <User className="h-3 w-3" />
                 Individual Registration
+              </Badge>
+            )}
+            {event.is_paid && event.registration_fee ? (
+              <Badge variant="outline" className="gap-1 text-orange-600 border-orange-200 bg-orange-50">
+                ₹{event.registration_fee} Registration Fee
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                Free Entry
               </Badge>
             )}
           </div>
@@ -315,6 +324,10 @@ export default function EventDetails() {
               userId={user.id}
               minTeamSize={event.min_team_size || 2}
               maxTeamSize={event.max_team_size || null}
+              isPaid={event.is_paid || false}
+              registrationFee={event.registration_fee || null}
+              paymentQrUrl={event.payment_qr_url || null}
+              upiId={event.upi_id || null}
               onSuccess={() => {
                 setShowTeamRegistration(false);
                 fetchEventDetails();
