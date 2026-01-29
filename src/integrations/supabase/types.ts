@@ -207,6 +207,7 @@ export type Database = {
           event_id: string
           id: string
           leader_id: string
+          logo_url: string | null
           name: string
           team_code: string
           updated_at: string
@@ -216,6 +217,7 @@ export type Database = {
           event_id: string
           id?: string
           leader_id: string
+          logo_url?: string | null
           name: string
           team_code: string
           updated_at?: string
@@ -225,6 +227,7 @@ export type Database = {
           event_id?: string
           id?: string
           leader_id?: string
+          logo_url?: string | null
           name?: string
           team_code?: string
           updated_at?: string
