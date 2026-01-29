@@ -8,18 +8,32 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { Event, Registration } from '@/components/events/EventCard';
-import { Calendar, MapPin, Users, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowLeft, Loader2, User, IndianRupee } from 'lucide-react';
 import { format } from 'date-fns';
+import TeamRegistration from '@/components/events/TeamRegistration';
+import PaymentInfo from '@/components/events/PaymentInfo';
+
+interface ExtendedEvent extends Event {
+  registration_type?: 'individual' | 'team';
+  min_team_size?: number;
+  max_team_size?: number | null;
+  is_paid?: boolean;
+  registration_fee?: number | null;
+  upi_id?: string | null;
+  payment_qr_url?: string | null;
+}
 
 export default function EventDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<ExtendedEvent | null>(null);
   const [registration, setRegistration] = useState<Registration | null>(null);
   const [registrationCount, setRegistrationCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [showTeamRegistration, setShowTeamRegistration] = useState(false);
+  const [userTeam, setUserTeam] = useState<{ name: string; code: string; memberCount: number } | null>(null);
 
   useEffect(() => {
     if (id) fetchEventDetails();
@@ -35,7 +49,7 @@ export default function EventDetails() {
         .single();
 
       if (eventError) throw eventError;
-      setEvent(eventData);
+      setEvent(eventData as unknown as ExtendedEvent);
 
       // Fetch registration count
       const { count } = await supabase
@@ -53,6 +67,32 @@ export default function EventDetails() {
           .eq('user_id', user.id)
           .maybeSingle();
         setRegistration(regData as Registration | null);
+
+        // If team event, check if user is in a team
+        if (eventData.registration_type === 'team') {
+          const { data: teamMembership } = await supabase
+            .from('team_members')
+            .select(`
+              team_id,
+              teams (
+                name,
+                team_code,
+                team_members (count)
+              )
+            `)
+            .eq('user_id', user.id)
+            .eq('teams.event_id', id)
+            .maybeSingle();
+
+          if (teamMembership?.teams) {
+            const team = teamMembership.teams as any;
+            setUserTeam({
+              name: team.name,
+              code: team.team_code,
+              memberCount: team.team_members?.[0]?.count || 1
+            });
+          }
+        }
       }
     } catch (error) {
       console.error('Error fetching event:', error);
@@ -226,6 +266,33 @@ export default function EventDetails() {
             </div>
           </div>
 
+          {/* Event Type & Payment Badges */}
+          <div className="flex flex-wrap gap-2">
+            {event.registration_type === 'team' && (
+              <Badge variant="outline" className="gap-1">
+                <Users className="h-3 w-3" />
+                Team Event ({event.min_team_size || 2} - {event.max_team_size || '∞'} members)
+              </Badge>
+            )}
+            {event.registration_type === 'individual' && (
+              <Badge variant="outline" className="gap-1">
+                <User className="h-3 w-3" />
+                Individual Registration
+              </Badge>
+            )}
+            {event.is_paid && event.registration_fee && (
+              <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
+                <IndianRupee className="h-3 w-3" />
+                ₹{event.registration_fee}
+              </Badge>
+            )}
+            {!event.is_paid && (
+              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                Free Entry
+              </Badge>
+            )}
+          </div>
+
           <div>
             <h3 className="font-semibold mb-2">About this event</h3>
             <p className="text-muted-foreground whitespace-pre-wrap">
@@ -233,18 +300,74 @@ export default function EventDetails() {
             </p>
           </div>
 
+          {/* Team Info for registered users */}
+          {userTeam && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{userTeam.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {userTeam.memberCount} member{userTeam.memberCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">Team Code</p>
+                    <p className="font-mono font-bold text-primary">{userTeam.code}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Payment Info for paid events */}
+          {event.is_paid && event.registration_fee && !registration && (
+            <PaymentInfo
+              registrationFee={event.registration_fee}
+              upiId={event.upi_id}
+              paymentQrUrl={event.payment_qr_url}
+              eventTitle={event.title}
+            />
+          )}
+
+          {/* Team Registration UI */}
+          {showTeamRegistration && event.registration_type === 'team' && user && (
+            <TeamRegistration
+              eventId={event.id}
+              userId={user.id}
+              minTeamSize={event.min_team_size || 2}
+              maxTeamSize={event.max_team_size || null}
+              onSuccess={() => {
+                setShowTeamRegistration(false);
+                fetchEventDetails();
+              }}
+            />
+          )}
+
           {/* Registration Actions */}
-          {!isPast && (
+          {!isPast && !showTeamRegistration && (
             <div className="flex gap-4">
               {registration ? (
-                registration.status === 'pending' && (
-                  <Button 
-                    variant="outline" 
-                    onClick={handleCancelRegistration}
-                  >
-                    Cancel Registration
-                  </Button>
-                )
+                <>
+                  {registration.status === 'pending' && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleCancelRegistration}
+                    >
+                      Cancel Registration
+                    </Button>
+                  )}
+                </>
+              ) : event.registration_type === 'team' ? (
+                <Button 
+                  size="lg"
+                  onClick={() => setShowTeamRegistration(true)}
+                  disabled={isFull}
+                  className="gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  {isFull ? 'Event is Full' : 'Create or Join Team'}
+                </Button>
               ) : (
                 <Button 
                   size="lg"

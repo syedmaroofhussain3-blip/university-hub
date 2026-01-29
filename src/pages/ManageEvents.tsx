@@ -77,7 +77,7 @@ export default function ManageEvents() {
         })
       );
 
-      setEvents(eventsWithCounts);
+      setEvents(eventsWithCounts as unknown as (Event & { registrations_count: number })[]);
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {

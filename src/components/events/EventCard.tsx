@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users, Loader2 } from 'lucide-react';
+import { Calendar, MapPin, Users, Loader2, User, IndianRupee } from 'lucide-react';
 import { format } from 'date-fns';
 
 export interface Event {
@@ -16,6 +16,9 @@ export interface Event {
   club_name: string;
   created_by: string;
   created_at: string;
+  registration_type?: 'individual' | 'team';
+  is_paid?: boolean;
+  registration_fee?: number | null;
 }
 
 export interface Registration {
@@ -71,8 +74,21 @@ export function EventCard({
             <Calendar className="h-12 w-12 text-muted-foreground/50" />
           </div>
         )}
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
           {getStatusBadge()}
+        </div>
+        <div className="absolute top-2 left-2 flex gap-1">
+          {event.registration_type === 'team' && (
+            <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+              <Users className="h-3 w-3 mr-1" />
+              Team
+            </Badge>
+          )}
+          {event.is_paid && event.registration_fee && (
+            <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+              ₹{event.registration_fee}
+            </Badge>
+          )}
         </div>
         {isPast && (
           <div className="absolute inset-0 bg-background/60 flex items-center justify-center">

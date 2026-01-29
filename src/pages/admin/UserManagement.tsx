@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Search, Crown, Loader2 } from 'lucide-react';
+import { Search, Crown, Loader2, UserMinus } from 'lucide-react';
 
 interface UserWithRole {
   id: string;
@@ -40,7 +40,9 @@ export default function UserManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [promotingUser, setPromotingUser] = useState<UserWithRole | null>(null);
+  const [demotingUser, setDemotingUser] = useState<UserWithRole | null>(null);
   const [isPromoting, setIsPromoting] = useState(false);
+  const [isDemoting, setIsDemoting] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -88,7 +90,6 @@ export default function UserManagement() {
     
     setIsPromoting(true);
     try {
-      // Update the user's role
       const { error } = await supabase
         .from('user_roles')
         .update({ role: 'president' })
@@ -96,7 +97,6 @@ export default function UserManagement() {
 
       if (error) throw error;
 
-      // Update local state
       setUsers(prev => 
         prev.map(u => 
           u.user_id === promotingUser.user_id 
@@ -118,6 +118,42 @@ export default function UserManagement() {
     } finally {
       setIsPromoting(false);
       setPromotingUser(null);
+    }
+  }
+
+  async function demoteToStudent() {
+    if (!demotingUser) return;
+    
+    setIsDemoting(true);
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: 'student' })
+        .eq('user_id', demotingUser.user_id);
+
+      if (error) throw error;
+
+      setUsers(prev => 
+        prev.map(u => 
+          u.user_id === demotingUser.user_id 
+            ? { ...u, role: 'student' } 
+            : u
+        )
+      );
+
+      toast({
+        title: 'President removed',
+        description: `${demotingUser.full_name || 'User'} is now a Student.`
+      });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.message || 'Failed to demote user.'
+      });
+    } finally {
+      setIsDemoting(false);
+      setDemotingUser(null);
     }
   }
 
@@ -194,7 +230,7 @@ export default function UserManagement() {
                   <TableCell>{user.student_id || '-'}</TableCell>
                   <TableCell>{user.department || '-'}</TableCell>
                   <TableCell>{getRoleBadge(user.role)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right space-x-2">
                     {user.role === 'student' && (
                       <Button
                         variant="outline"
@@ -204,6 +240,17 @@ export default function UserManagement() {
                       >
                         <Crown className="h-4 w-4" />
                         Make President
+                      </Button>
+                    )}
+                    {user.role === 'president' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDemotingUser(user)}
+                        className="gap-1 text-destructive hover:text-destructive"
+                      >
+                        <UserMinus className="h-4 w-4" />
+                        Remove President
                       </Button>
                     )}
                   </TableCell>
@@ -233,6 +280,30 @@ export default function UserManagement() {
             >
               {isPromoting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Promote
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Demote Confirmation Dialog */}
+      <AlertDialog open={!!demotingUser} onOpenChange={() => setDemotingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove President Role?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to demote <strong>{demotingUser?.full_name || 'this user'}</strong> back 
+              to Student. They will lose access to event management and announcement features.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDemoting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={demoteToStudent}
+              disabled={isDemoting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDemoting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Remove President
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
