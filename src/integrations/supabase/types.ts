@@ -48,9 +48,16 @@ export type Database = {
           event_date: string
           id: string
           image_url: string | null
+          is_paid: boolean
           location: string
+          max_team_size: number | null
+          min_team_size: number | null
+          payment_qr_url: string | null
+          registration_fee: number | null
+          registration_type: string
           title: string
           updated_at: string | null
+          upi_id: string | null
         }
         Insert: {
           capacity?: number
@@ -61,9 +68,16 @@ export type Database = {
           event_date: string
           id?: string
           image_url?: string | null
+          is_paid?: boolean
           location: string
+          max_team_size?: number | null
+          min_team_size?: number | null
+          payment_qr_url?: string | null
+          registration_fee?: number | null
+          registration_type?: string
           title: string
           updated_at?: string | null
+          upi_id?: string | null
         }
         Update: {
           capacity?: number
@@ -74,9 +88,16 @@ export type Database = {
           event_date?: string
           id?: string
           image_url?: string | null
+          is_paid?: boolean
           location?: string
+          max_team_size?: number | null
+          min_team_size?: number | null
+          payment_qr_url?: string | null
+          registration_fee?: number | null
+          registration_type?: string
           title?: string
           updated_at?: string | null
+          upi_id?: string | null
         }
         Relationships: []
       }
@@ -151,6 +172,73 @@ export type Database = {
           },
         ]
       }
+      team_members: {
+        Row: {
+          id: string
+          joined_at: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          leader_id: string
+          name: string
+          team_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          leader_id: string
+          name: string
+          team_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          leader_id?: string
+          name?: string
+          team_code?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -177,6 +265,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_team_code: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

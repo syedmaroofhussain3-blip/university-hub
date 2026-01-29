@@ -29,7 +29,7 @@ export default function Events() {
         .order('event_date', { ascending: true });
 
       if (eventsError) throw eventsError;
-      setEvents(eventsData || []);
+      setEvents((eventsData || []) as unknown as Event[]);
 
       // Fetch user's registrations
       if (user) {
