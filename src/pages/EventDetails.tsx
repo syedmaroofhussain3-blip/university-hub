@@ -8,10 +8,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { Event, Registration } from '@/components/events/EventCard';
-import { Calendar, MapPin, Users, ArrowLeft, Loader2, User, IndianRupee } from 'lucide-react';
+import { Calendar, MapPin, Users, ArrowLeft, Loader2, User } from 'lucide-react';
 import { format } from 'date-fns';
 import TeamRegistration from '@/components/events/TeamRegistration';
-import PaymentInfo from '@/components/events/PaymentInfo';
 
 interface ExtendedEvent extends Event {
   registration_type?: 'individual' | 'team';
@@ -111,8 +110,8 @@ export default function EventDetails() {
     
     setIsRegistering(true);
     
-    // Optimistic update
-    setRegistration({ id: 'temp', event_id: event.id, status: 'pending' });
+    // Optimistic update - auto-approve for individual events
+    setRegistration({ id: 'temp', event_id: event.id, status: 'approved' });
 
     try {
       const { data, error } = await supabase
@@ -120,7 +119,7 @@ export default function EventDetails() {
         .insert({
           user_id: user.id,
           event_id: event.id,
-          status: 'pending'
+          status: 'approved' // Auto-approve for individual registrations
         })
         .select()
         .single();
@@ -131,8 +130,8 @@ export default function EventDetails() {
       setRegistrationCount(prev => prev + 1);
 
       toast({
-        title: 'Registration submitted!',
-        description: 'Your registration is pending approval.'
+        title: 'Registration confirmed!',
+        description: 'You are registered for this event.'
       });
     } catch (error: any) {
       setRegistration(null);
@@ -266,7 +265,7 @@ export default function EventDetails() {
             </div>
           </div>
 
-          {/* Event Type & Payment Badges */}
+          {/* Event Type Badges */}
           <div className="flex flex-wrap gap-2">
             {event.registration_type === 'team' && (
               <Badge variant="outline" className="gap-1">
@@ -278,17 +277,6 @@ export default function EventDetails() {
               <Badge variant="outline" className="gap-1">
                 <User className="h-3 w-3" />
                 Individual Registration
-              </Badge>
-            )}
-            {event.is_paid && event.registration_fee && (
-              <Badge variant="outline" className="gap-1 text-green-600 border-green-200 bg-green-50">
-                <IndianRupee className="h-3 w-3" />
-                ₹{event.registration_fee}
-              </Badge>
-            )}
-            {!event.is_paid && (
-              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                Free Entry
               </Badge>
             )}
           </div>
@@ -318,16 +306,6 @@ export default function EventDetails() {
                 </div>
               </CardContent>
             </Card>
-          )}
-
-          {/* Payment Info for paid events */}
-          {event.is_paid && event.registration_fee && !registration && (
-            <PaymentInfo
-              registrationFee={event.registration_fee}
-              upiId={event.upi_id}
-              paymentQrUrl={event.payment_qr_url}
-              eventTitle={event.title}
-            />
           )}
 
           {/* Team Registration UI */}

@@ -12,7 +12,6 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Upload, X } from 'lucide-react';
-import PaymentSection from '@/components/events/PaymentSection';
 import TeamSettings from '@/components/events/TeamSettings';
 
 const eventSchema = z.object({
@@ -38,13 +37,6 @@ export default function CreateEvent() {
   const [registrationType, setRegistrationType] = useState<'individual' | 'team'>('individual');
   const [minTeamSize, setMinTeamSize] = useState('2');
   const [maxTeamSize, setMaxTeamSize] = useState('');
-  
-  // Payment settings
-  const [isPaid, setIsPaid] = useState(false);
-  const [registrationFee, setRegistrationFee] = useState('');
-  const [upiId, setUpiId] = useState('');
-  const [qrFile, setQrFile] = useState<File | null>(null);
-  const [qrPreview, setQrPreview] = useState<string | null>(null);
 
   const form = useForm<EventFormValues>({
     resolver: zodResolver(eventSchema),
@@ -76,18 +68,12 @@ export default function CreateEvent() {
     setImagePreview(null);
   }
 
-  function handleQrChange(file: File | null, preview: string | null) {
-    setQrFile(file);
-    setQrPreview(preview);
-  }
-
   async function onSubmit(values: EventFormValues) {
     if (!user) return;
     
     setIsLoading(true);
     try {
       let imageUrl: string | null = null;
-      let paymentQrUrl: string | null = null;
 
       // Upload event image if provided
       if (imageFile) {
@@ -107,28 +93,10 @@ export default function CreateEvent() {
         imageUrl = publicUrl;
       }
 
-      // Upload payment QR if provided
-      if (qrFile && isPaid) {
-        const fileExt = qrFile.name.split('.').pop();
-        const fileName = `${user.id}/qr-${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from('event-images')
-          .upload(fileName, qrFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('event-images')
-          .getPublicUrl(fileName);
-        
-        paymentQrUrl = publicUrl;
-      }
-
       // Combine date and time
       const eventDateTime = new Date(`${values.eventDate}T${values.eventTime}`);
 
-      // Create event with new fields
+      // Create event
       const { error } = await supabase
         .from('events')
         .insert({
@@ -143,10 +111,7 @@ export default function CreateEvent() {
           registration_type: registrationType,
           min_team_size: registrationType === 'team' ? parseInt(minTeamSize) || 2 : 2,
           max_team_size: registrationType === 'team' && maxTeamSize ? parseInt(maxTeamSize) : null,
-          is_paid: isPaid,
-          registration_fee: isPaid && registrationFee ? parseFloat(registrationFee) : null,
-          upi_id: isPaid && upiId ? upiId : null,
-          payment_qr_url: paymentQrUrl
+          is_paid: false
         });
 
       if (error) throw error;
@@ -330,18 +295,6 @@ export default function CreateEvent() {
                 onMinTeamSizeChange={setMinTeamSize}
                 maxTeamSize={maxTeamSize}
                 onMaxTeamSizeChange={setMaxTeamSize}
-              />
-
-              {/* Payment Settings */}
-              <PaymentSection
-                isPaid={isPaid}
-                onIsPaidChange={setIsPaid}
-                registrationFee={registrationFee}
-                onRegistrationFeeChange={setRegistrationFee}
-                upiId={upiId}
-                onUpiIdChange={setUpiId}
-                qrPreview={qrPreview}
-                onQrChange={handleQrChange}
               />
 
               <div className="flex gap-4">
